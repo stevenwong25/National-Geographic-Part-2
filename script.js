@@ -47,13 +47,18 @@ const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 // TODO: const askBtn = ...
 // TODO: const guideResponseEl = ...
 // TODO: askBtn.addEventListener(...)
-
+const questionInput = document.getElementById("questionInput"); 
+const askBtn = document.getElementById("askBtn"); 
+const guideResponseEl = document.getElementById("guideResponse"); 
+askBtn.addEventListener("click", askFieldGuide);
 
 /* ============================================================
    STEP 2 (part 1): Create a variable to remember the country.
    Start it as null (nothing explored yet).
    ============================================================ */
 // TODO: let currentCountry = ...
+
+let currentCountry = null;
 
 
 // --- Part 1: connect the Explore button (already done) --------
@@ -66,7 +71,7 @@ async function fetchCountry() {
   showLoading();
 
   try {
-    const API_KEY = ""; // REST Countries v5 key (same as Part 1)
+    const API_KEY = "rc_live_5d087e8b56b4436dbafa36fbf48d4974"; // REST Countries v5 key (same as Part 1)
     const url =
       `https://api.restcountries.com/countries/v5?q=${encodeURIComponent(countryName)}` +
       `&response_fields=names.common,capitals,region,population,languages,flag.url_png,flag.description`;
@@ -109,7 +114,10 @@ async function fetchCountry() {
        3. Remove the "hidden" class from fieldGuideEl
        ---------------------------------------------------------- */
     // TODO
-
+    currentCountry = country;
+    guideCountryNameEl.textContent = country.names.common;
+    guideCountryNameEl.textContent = `Ask me anything about ${country.names.common}.`
+    fieldGuideEl.classList.remove('hidden');
 
   } catch (error) {
     hideLoading();
@@ -133,8 +141,17 @@ async function fetchCountry() {
    ============================================================ */
 async function askFieldGuide() {
   // TODO: read and validate the question
+  const question = questionInput.value.trim();
 
-
+  if (!currentCountry) {
+    guideResponseEl.textContent = "Explore a country first, then ask your question!";
+    return;
+  }
+  
+  if (!question) {
+    guideResponseEl.textContent = "Type a question first.";
+    return;
+  }
   /* ----------------------------------------------------------
      STEP 4: Build the messages array.
      ----------------------------------------------------------
@@ -144,6 +161,10 @@ async function askFieldGuide() {
      ---------------------------------------------------------- */
   // TODO: const messages = [ ... ];
 
+  const messages = [
+    { role: "system", content: buildSystemPrompt(currentCountry) },
+    { role: "user", content: question }
+  ]
 
   /* ----------------------------------------------------------
      STEP 6 (part 1): Loading state.
@@ -151,7 +172,9 @@ async function askFieldGuide() {
      BEFORE you send the request.
      ---------------------------------------------------------- */
   // TODO
-
+  guideResponseEl.textContent = "Consulting the field notes...";
+  guideResponseEl.className = "guide-response thinking";
+  askBtn.disabled = true;
 
   /* ----------------------------------------------------------
      STEP 6 (part 2): Wrap Step 5 in try { } catch (error) { }
@@ -178,7 +201,32 @@ async function askFieldGuide() {
      - Put that text into guideResponseEl.textContent
      ---------------------------------------------------------- */
   // TODO
-
+  try {
+    const response = await fetch(OPENAI_URL, { 
+      method: "POST", 
+      headers: { 
+        "Content-Type": "application/json", 
+        Authorization: `Bearer ${OPENAI_API_KEY}`, }, 
+        body: JSON.stringify({ model: "gpt-4o", messages: messages }), 
+      }); 
+        
+      if (!response.ok) { 
+        throw new Error(`Request failed with status ${response.status}`); 
+      } 
+      
+      const data = await response.json(); 
+      console.log("Raw AI response:", data); 
+      const reply = data.choices[0].message.content; 
+      guideResponseEl.textContent = reply; 
+      guideResponseEl.className = "guide-response";
+  }
+  catch (error) {
+    console.error(error);
+    guideResponseEl.textContent = "The Field Guide couldn't answer right now. Please try again in a moment.";
+  }
+  finally {
+    askBtn.disabled = false;
+  }
 }
 
 /* ============================================================
